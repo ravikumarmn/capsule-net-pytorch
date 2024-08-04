@@ -15,15 +15,15 @@ import matplotlib.pyplot as plt
 from io import BytesIO
 from tensorflow.keras.preprocessing.image import load_img
 
-@st.cache_resource()
+@st.cache_data
 def load_lime_model():
     return keras.applications.inception_v3.InceptionV3()
 
-@st.cache_resource()
+@st.cache_data
 def load_shap_model():
     return keras.models.load_model("checkpoint/new_oned_shap.keras")
 
-@st.cache_resource()
+@st.cache_data
 def load_pretrained_model():
     pre_trained_model_path = "checkpoint/model_epoch_30.pth"
     pre_trained_model_state_dict = torch.load(pre_trained_model_path, map_location=torch.device('cpu'))['state_dict']
