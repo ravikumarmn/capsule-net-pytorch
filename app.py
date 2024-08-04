@@ -25,7 +25,7 @@ def load_shap_model():
 
 @st.cache_resource()
 def load_pretrained_model():
-    pre_trained_model_path = "./results/trained_model/model_epoch_30.pth"
+    pre_trained_model_path = "checkpoint/model_epoch_30.pth"
     pre_trained_model_state_dict = torch.load(pre_trained_model_path, map_location=torch.device('cpu'))['state_dict']
 
     model = Net(num_conv_in_channel=1,
