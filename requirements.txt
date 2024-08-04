@@ -5,7 +5,7 @@ tensorflow
 tqdm
 matplotlib
 streamlit
-keras
+keras==2.13.1
 shap
 scikit-image
 tensorflow
