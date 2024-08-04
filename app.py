@@ -15,13 +15,152 @@ import matplotlib.pyplot as plt
 from io import BytesIO
 from tensorflow.keras.preprocessing.image import load_img
 
+import os
+if os.path.exists("checkpoint/shape_model.keras"):
+    import numpy as np
+    import os
+    from keras.preprocessing.image import ImageDataGenerator
+    from keras.applications.inception_v3 import preprocess_input
+    import shap
+    import numpy as np
+    import tensorflow as tf
+    from tensorflow import keras
+    import matplotlib.pyplot as plt
+    from tensorflow.keras.preprocessing.image import load_img, img_to_array
+    from sklearn.model_selection import train_test_split
+    from tensorflow.keras import layers, models
+    import pickle
+
+    dataset_dir = 'dataset/'
+
+    train_datagen = ImageDataGenerator(
+        rescale=1./255,
+        preprocessing_function=preprocess_input, 
+        validation_split=0.2  # Use 20% of the data for validation
+    )
+
+    train_generator = train_datagen.flow_from_directory(
+        dataset_dir,
+        target_size=(299, 299),  # Resize images to match model expected input
+        batch_size=32,
+        class_mode='sparse' , 
+        subset='training'  
+    )
+
+    validation_generator = train_datagen.flow_from_directory(
+        dataset_dir,
+        target_size=(299, 299),
+        batch_size=32,
+        class_mode='sparse' ,
+        subset='validation' 
+    )
+
+    def load_image_paths_labels(dataset_dir):
+        image_paths = []
+        labels = []
+        class_names = os.listdir(dataset_dir)
+        label_map = {class_name: i for i, class_name in enumerate(class_names)}
+
+        for class_name in class_names:
+            class_dir = os.path.join(dataset_dir, class_name)
+            for img_name in os.listdir(class_dir):
+                img_path = os.path.join(class_dir, img_name)
+                image_paths.append(img_path)
+                labels.append(label_map[class_name])
+
+        return image_paths, labels, label_map
+
+    dataset_dir = 'dataset'
+    image_paths, labels, label_map = load_image_paths_labels(dataset_dir)
+
+    # Split the data - 80% for training, 20% for testing
+    x_train_paths, x_test_paths, y_train, y_test = train_test_split(
+        image_paths, labels, test_size=0.2, random_state=42
+    )
+
+    def load_images(image_paths, target_size=(28,28)):
+        images = []
+        for img_path in image_paths:
+            img = load_img(img_path, target_size=target_size, color_mode='grayscale')
+            img_array = img_to_array(img)
+            img_array /= 255.0  # Normalize to [0, 1]
+            images.append(img_array)
+        return np.array(images)
+
+    # Load the datasets
+    x_train = load_images(x_train_paths)
+    x_test = load_images(x_test_paths)
+    y_train = np.array(y_train)
+    y_test = np.array(y_test)
+
+    # Check the shapes
+    print("x_train shape:", x_train.shape)
+    print("y_train shape:", y_train.shape)
+    print("x_test shape:", x_test.shape)
+    print("y_test shape:", y_test.shape)
+
+    inputs = tf.keras.Input(shape=(28,28, 1))
+    x = layers.Conv2D(32, (3, 3), activation='relu')(inputs)
+    x = layers.MaxPooling2D((2, 2))(x)
+    x = layers.Flatten()(x)
+    x = layers.Dense(256, activation='relu')(x)
+    outputs = layers.Dense(4, activation='softmax')(x)
+    model = models.Model(inputs=inputs, outputs=outputs, name="sparse_CNN")
+
+    model.compile(
+        loss='sparse_categorical_crossentropy',
+        optimizer=tf.keras.optimizers.Adam(),
+        metrics=['accuracy']
+    )
+
+    history = model.compile(
+        loss=tf.keras.losses.SparseCategoricalCrossentropy(),
+        optimizer=keras.optimizers.Adam(),
+        metrics=[tf.keras.metrics.SparseCategoricalAccuracy()]
+    )
+
+    model.fit(x_train, y_train, epochs=20, validation_data=(x_test, y_test))
+
+    class_names = os.listdir("dataset")
+
+    background = x_train[np.random.choice(x_train.shape[0], 5000, replace=False)]
+    # Use DeepExplainer to explain predictions of the model
+    # e = shap.DeepExplainer(model, background)
+
+    explainer = shap.DeepExplainer(model, background)
+
+    x_test_dict = dict()
+    for i, l in enumerate(y_test):
+        if len(x_test_dict)==10:
+            break
+        if l not in x_test_dict.keys():
+            x_test_dict[l] = x_test[i]
+
+    # Convert to list preserving order of classes
+    x_test_each_class = [x_test_dict[i] for i in sorted(x_test_dict)]
+
+    # Convert to tensor
+    x_test_each_class = np.asarray(x_test_each_class)
+
+    # Print shape of tensor
+    print(f"x_test_each_class tensor has shape: {x_test_each_class.shape}")
+
+    predictions = model.predict(x_test_each_class)
+
+    shap_values = explainer.shap_values(x_test_each_class)
+    # Plot shap values
+    # shap.image_plot(shap_values, -x_test_each_class)
+
+    model.save("shape_model.keras")
+    
+
 @st.cache_data
 def load_lime_model():
     return keras.applications.inception_v3.InceptionV3()
 
 @st.cache_data
 def load_shap_model():
-    return keras.models.load_model("checkpoint/new_oned_shap.keras")
+    return keras.models.load_model("checkpoint/shape_model.keras")
 
 @st.cache_data
 def load_pretrained_model():
